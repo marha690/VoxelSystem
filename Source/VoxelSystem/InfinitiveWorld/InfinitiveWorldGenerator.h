@@ -52,4 +52,6 @@ private:
 
 	int chunkSize = 32;
 	int chunkDimension = 35;
+
+	bool generateArea(int range);
 };

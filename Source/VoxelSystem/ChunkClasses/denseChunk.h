@@ -30,7 +30,7 @@ private:
 	denseChunk* neighbour[NeighbourChunk::NUM_NEIGHBOURS] = {};
 
 	void setAllVoxels(VoxelData data);
-	VoxelData findVoxel(int x, int y, int z);
+	VoxelData* findVoxel(int x, int y, int z);
 	int convertVoxelToLocal(int i);
 
 };

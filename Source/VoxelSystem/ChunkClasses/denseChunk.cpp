@@ -25,8 +25,15 @@ void denseChunk::setVoxel(VoxelData d, FVector xyz)
 void denseChunk::setVoxel(VoxelData d, int x, int y, int z)
 {
 	meshCorrect = false;
-	int index = arrayIndex(x, y, z);
-	voxels[index] = d;
+
+	//int index = arrayIndex(x, y, z);
+	//voxels[index] = d;
+
+	auto v = findVoxel(x, y, z);
+	if (v) {
+		v->colorID = d.colorID;
+		v->type= d.type;
+	}
 }
 
 VoxelData denseChunk::getVoxel(FVector xyz)
@@ -81,10 +88,11 @@ void denseChunk::updateMeshData()
 bool denseChunk::isSolid(int x, int y, int z)
 {
 	auto voxel = findVoxel(x, y, z);
-
-	if (voxel.type == VoxelType::AIR ||
-		voxel.type == VoxelType::IRREGULAR)
-		return false;
+	if (voxel) {
+		if (voxel->type == VoxelType::AIR ||
+			voxel->type == VoxelType::IRREGULAR)
+			return false;
+	}
 
 	return true;
 }
@@ -104,7 +112,7 @@ void denseChunk::setAllVoxels(VoxelData data)
 	}
 }
 
-VoxelData denseChunk::findVoxel(int x, int y, int z)
+VoxelData* denseChunk::findVoxel(int x, int y, int z)
 {
 
 	if (x >= chunkSize || y >= chunkSize || z >= chunkSize || x < 0 || y < 0 || z < 0) { // Inside other chunk.
@@ -156,16 +164,16 @@ VoxelData denseChunk::findVoxel(int x, int y, int z)
 			denseChunk *c = neighbour[(int)neighbourArrayIndex];
 			if (c != nullptr) {
 				int index = arrayIndex(x, y, z);
-				return c->voxels[index];
+				return &c->voxels[index];
 			}
 			else
-				return VoxelData{ VoxelType::IRREGULAR, 0 };
+				return nullptr;
 		}
 	}
 
 	// Inside chunk
 	int index = arrayIndex(x, y, z);
-	return voxels[index];
+	return &voxels[index];
 }
 
 int denseChunk::convertVoxelToLocal(int i)

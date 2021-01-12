@@ -11,12 +11,13 @@
 
 enum SliceState
 {
-	Processing = 0,
-	Empty = 1,
-	Terrain = 2,
-	Structures = 3,
-	Mesh = 4,
-	Done
+	PROCESSING = 0,
+	EMPTY = 1,
+	TERRAIN = 2,
+	STRUCTURES = 3,
+	MESH = 4,
+	REDRAW = 5,
+	DONE
 };
 
 const static enum NeighbourSlice {
@@ -55,7 +56,7 @@ private:
 	FVector2D chunkIndex;
 	TArray<denseChunk*> chunks;
 	UProceduralMeshComponent* CustomMesh;
-	SliceState state = Processing;
+	SliceState state = PROCESSING;
 
 	bool neighboursSet = false;
 	friend class ChunkTask;
@@ -77,6 +78,7 @@ public:
 
 private:
 	void MakeTerrain();
+	void MakeObjects();
 	void MakeMesh();
 	AWorldSlice* slice;
 	SliceState processState;

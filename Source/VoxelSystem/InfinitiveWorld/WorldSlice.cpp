@@ -2,6 +2,8 @@
 
 
 #include "WorldSlice.h"
+#include "../Generation/Generator_1.h"
+#include "../Generation/VoxReader.h"
 
 // Sets default values
 AWorldSlice::AWorldSlice()
@@ -36,7 +38,7 @@ void AWorldSlice::initialize(int numChunks, int chunkSize, int chunkDimension, F
 			chunks[i]->setNeighbours(NeighbourChunk::Z_MINUS, chunks[i - 1]);
 		}
 	}
-	state = SliceState::Empty;
+	state = SliceState::EMPTY;
 }
 
 // Called when the game starts or when spawned
@@ -62,7 +64,7 @@ void AWorldSlice::continueGenerationProcess(SliceState s)
 {
 	SliceState taskState = state;
 	if (taskState == s) {
-		state = SliceState::Processing;
+		state = SliceState::PROCESSING;
 		(new FAutoDeleteAsyncTask<ChunkTask>(this, taskState))->StartBackgroundTask(); //Thread.
 	}
 }
@@ -87,7 +89,7 @@ void AWorldSlice::drawMesh()
 			*chunks[i]->getVertexColors(),
 			TArray<FProcMeshTangent>(), true);
 	}
-	state = Done;
+	state = DONE;
 }
 
 void AWorldSlice::setNeighbour(NeighbourSlice direction, AWorldSlice* slice)
@@ -110,20 +112,20 @@ void ChunkTask::DoWork()
 {
 	switch (processState)
 	{
-	case Processing:
+	case PROCESSING:
 		break;
-	case Empty:
+	case EMPTY:
 		MakeTerrain();
 		break;
-	case Terrain:
-		slice->state = Structures;
+	case TERRAIN:
+		MakeObjects();
 		break;
-	case Structures:
+	case STRUCTURES:
 		MakeMesh();
 		break;
-	case Mesh:
+	case MESH:
 		break;
-	case Done:
+	case DONE:
 		break;
 	default:
 		break;
@@ -137,16 +139,50 @@ void ChunkTask::MakeTerrain()
 	VoxelData stone = VoxelData{ VoxelType::REGULAR, 4 };
 	VoxelData bottom = VoxelData{ VoxelType::UNBREAKABLE, 4 };
 
-	for (size_t i = 0; i < slice->chunks[0]->chunkSize; i++)
-		for (size_t j = 0; j < slice->chunks[0]->chunkSize; j++)
-		{
-			slice->setVoxel(bottom, i, j, 0);
-			slice->setVoxel(stone, i, j, 1);
+	Generator_1 g{};
+	auto chunkIndex = slice->chunkIndex;
+	chunkIndex *= slice->chunks[0]->chunkSize;
 
-			slice->setVoxel(stone, i, j, 32);
-			slice->setVoxel(stone, i, j, 31);
+	for (size_t x = 0; x < slice->chunks[0]->chunkSize; x++)
+		for (size_t y = 0; y < slice->chunks[0]->chunkSize; y++) {
+
+			//int h = g.heightMap(chunkIndex.X + x, chunkIndex.Y + y);
+			//for (size_t z = 0; z < slice->chunkHeight * slice->chunks[0]->chunkSize; z++) {
+			//	if (h > z)
+			//		slice->setVoxel(stone, x, y, z);
+			//}
+
+
+					slice->setVoxel(stone, x, y, 0); //TODO: REMOVE
 		}
-	slice->state = Terrain;
+
+	slice->state = TERRAIN;
+}
+
+void ChunkTask::MakeObjects()
+{
+	VoxReader reader("test64.vox");
+	Generator_1 g{};
+
+
+	auto globalIndex = slice->chunkIndex * slice->chunks[0]->chunkSize;
+
+	for (size_t x = 0; x < slice->chunks[0]->chunkSize; x++)
+		for (size_t y = 0; y < slice->chunks[0]->chunkSize; y++) {
+			if (g.makeTree(globalIndex.X + x, globalIndex.Y + y)) {
+
+				int zStart = g.heightMap(globalIndex.X + x, globalIndex.Y + y);
+				for (size_t i = 0; i < reader.voxels.size(); i++) {
+					auto raw = reader.voxels[i];
+					VoxelData data{ VoxelType::REGULAR, raw.second };
+
+					slice->setVoxel(data, raw.first.X + x, raw.first.Y + y, zStart + raw.first.Z);
+				}
+			}
+		}
+
+
+	slice->state = MESH;
 }
 
 void ChunkTask::MakeMesh()
@@ -157,5 +193,5 @@ void ChunkTask::MakeMesh()
 			slice->chunks[i]->updateMeshData();
 		}
 	}
-	slice->state = Mesh;
+	slice->state = MESH;
 }
