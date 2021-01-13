@@ -94,7 +94,7 @@ bool AInfinitiveWorldGenerator::LoadSlice(FVector2D index)
 	FRotator rot = FRotator(0, 0, 0);
 	FVector pos = FVector(index, 0) * (chunkSize * chunkDimension);
 	auto v = (AWorldSlice*)GetWorld()->SpawnActor(AWorldSlice::StaticClass(), &pos, &rot);
-	v->initialize(6, chunkSize, chunkDimension, index);
+	v->initialize(chunksInHeight, chunkSize, chunkDimension, index);
 	v->SetFolderPath("/Chunks");
 	WorldSlices.Add(index, v);
 	return true;
@@ -118,7 +118,7 @@ SliceState AInfinitiveWorldGenerator::globalSliceState(int range)
 	return globalProgress;
 }
 
-void AInfinitiveWorldGenerator::setChunkNeighbours()
+void AInfinitiveWorldGenerator::setSliceNeighbours()
 {
 	for (auto It = WorldSlices.CreateConstIterator(); It; ++It)
 	{
@@ -170,7 +170,7 @@ bool AInfinitiveWorldGenerator::generateArea(int range)
 {
 	// add slices and neighbour connections
 	GenerateNewWorldSlices(range + 3);
-	setChunkNeighbours();
+	setSliceNeighbours();
 
 	// generation
 	int gRange = range + 2;

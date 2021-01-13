@@ -9,6 +9,8 @@
 
 #include "WorldSlice.generated.h"
 
+class denseChunk;
+
 enum SliceState
 {
 	PROCESSING = 0,
@@ -37,7 +39,7 @@ class VOXELSYSTEM_API AWorldSlice : public AActor
 public:	
 	// Sets default values for this actor's properties
 	AWorldSlice();
-	void initialize(int numChunks, int chunkSize, int chunkDimension, FVector2D cIndex);
+	void initialize(int numChunks, int cSize, int chunkDimension, FVector2D cIndex);
 
 protected:
 	// Called when the game starts or when spawned
@@ -46,19 +48,25 @@ protected:
 public:
 	void setVoxel(VoxelData d, FVector xyz);
 	void setVoxel(VoxelData d, int x, int y, int z);
+	const VoxelData* getVoxel(int x, int y, int z);
 	void continueGenerationProcess(SliceState s);
 	void drawMesh();
+	void setNeighbour(NeighbourSlice direction, AWorldSlice* s);
 	SliceState getState() { return state; }
-	void setNeighbour(NeighbourSlice direction, AWorldSlice* slice);
-
 private:
 	int chunkHeight;
+	int chunkSize;
 	FVector2D chunkIndex;
 	TArray<denseChunk*> chunks;
 	UProceduralMeshComponent* CustomMesh;
 	SliceState state = PROCESSING;
 
 	bool neighboursSet = false;
+	AWorldSlice* neighbour[NeighbourSlice::NUM_SLICES] = {};
+
+	AWorldSlice* findSlice(int x, int y);
+	int convertVoxelToLocal(int i);
+
 	friend class ChunkTask;
 };
 

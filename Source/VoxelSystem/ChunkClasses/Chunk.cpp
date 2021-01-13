@@ -15,6 +15,15 @@ Chunk::Chunk(int size, int vSize)
 	nVoxels = size * size * size;
 }
 
+void Chunk::clearData()
+{
+	vertices.Empty();
+	triangles.Empty();
+	vertexColors.Empty();
+	normals.Empty();
+	uv0.Empty();
+}
+
 int Chunk::arrayIndex(FVector xyz)
 {
 	return arrayIndex(xyz.X, xyz.Y, xyz.Z);

@@ -8,7 +8,7 @@
 // Sets default values
 AWorldSlice::AWorldSlice()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	CustomMesh = CreateDefaultSubobject<UProceduralMeshComponent>("CustomMesh");
@@ -16,36 +16,25 @@ AWorldSlice::AWorldSlice()
 	CustomMesh->bUseAsyncCooking = true;
 }
 
-void AWorldSlice::initialize(int numChunks, int chunkSize, int chunkDimension, FVector2D cIndex)
+void AWorldSlice::initialize(int numChunks, int cSize, int chunkDimension, FVector2D cIndex)
 {
+	chunkSize = cSize;
 	chunkHeight = numChunks;
 	chunkIndex = cIndex;
 	VoxelData air = VoxelData{ VoxelType::AIR, 0 };
 
 	for (size_t i = 0; i < chunkHeight; i++) {
-		denseChunk* c = new denseChunk(chunkSize, chunkDimension, air);
+		denseChunk* c = new denseChunk(chunkSize, chunkDimension, i, air, this);
 		chunks.Add(c);
 	}
-	
-	//Set internal neigours.
-	for (size_t i = 0; i < chunkHeight; i++) {
-		if (i == 0) // bottom
-			chunks[i]->setNeighbours(NeighbourChunk::Z_PLUS, chunks[i + 1]);
-		else if ( i == chunkHeight - 1) // top
-			chunks[i]->setNeighbours(NeighbourChunk::Z_MINUS, chunks[i - 1]);
-		else {
-			chunks[i]->setNeighbours(NeighbourChunk::Z_PLUS, chunks[i + 1]);
-			chunks[i]->setNeighbours(NeighbourChunk::Z_MINUS, chunks[i - 1]);
-		}
-	}
+
 	state = SliceState::EMPTY;
 }
 
-// Called when the game starts or when spawned
 void AWorldSlice::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 }
 
 void AWorldSlice::setVoxel(VoxelData d, FVector xyz)
@@ -55,9 +44,32 @@ void AWorldSlice::setVoxel(VoxelData d, FVector xyz)
 
 void AWorldSlice::setVoxel(VoxelData d, int x, int y, int z)
 {
-	int i = (double)z / (double)chunks[0]->chunkSize;
-	int newZ = z - i * chunks[0]->chunkSize;
-	chunks[i]->setVoxel(d, x, y, newZ);
+	auto slice = findSlice(x, y);
+	x = convertVoxelToLocal(x);
+	y = convertVoxelToLocal(y);
+
+	if (slice) {
+		int i = (double)z / (double)chunkSize;
+		z = convertVoxelToLocal(z);
+		if (slice->chunks[i])
+			slice->chunks[i]->setVoxel(d, x, y, z);
+	}
+}
+
+const VoxelData* AWorldSlice::getVoxel(int x, int y, int z)
+{
+	auto slice = findSlice(x, y);
+	x = convertVoxelToLocal(x);
+	y = convertVoxelToLocal(y);
+
+	if (slice) {
+		int i = (double)z / (double)chunkSize;
+		z = convertVoxelToLocal(z);
+		if(chunks[i])
+			return slice->chunks[i]->getVoxel(x, y, z);
+	}
+
+	return nullptr;
 }
 
 void AWorldSlice::continueGenerationProcess(SliceState s)
@@ -73,9 +85,7 @@ void AWorldSlice::drawMesh()
 {
 	for (size_t i = 0; i < chunkHeight; i++)
 	{
-		if (chunks[i]->isMeshOutdated()) {
-			chunks[i]->updateMeshData();
-		}
+		chunks[i]->updateMeshData();
 
 		TArray<FVector>* v = chunks[i]->getVertices();
 		for (FVector& _v : *v)
@@ -92,13 +102,56 @@ void AWorldSlice::drawMesh()
 	state = DONE;
 }
 
-void AWorldSlice::setNeighbour(NeighbourSlice direction, AWorldSlice* slice)
+void AWorldSlice::setNeighbour(NeighbourSlice direction, AWorldSlice* s)
 {
-	for (size_t i = 0; i < chunkHeight; i++)
-	{
-		if(chunks[i]->hasNeighbour((NeighbourChunk)direction))
-			chunks[i]->setNeighbours((NeighbourChunk)direction, slice->chunks[i]);
+	if (!neighbour[(int)direction])
+		neighbour[(int)direction] = s;
+}
+
+AWorldSlice* AWorldSlice::findSlice(int x, int y)
+{
+	// x
+	if (x < 0) {
+		if (neighbour[X_M])
+			return neighbour[X_M]->findSlice(chunkSize + x, y);
+		else
+			return nullptr;
 	}
+	else if (x > chunkSize - 1) {
+		if (neighbour[X_P])
+			return neighbour[X_P]->findSlice(x - chunkSize, y);
+		else
+			return nullptr;
+	}
+
+	// y
+	if (y < 0) {
+		if (neighbour[Y_M])
+			return neighbour[Y_M]->findSlice(x, chunkSize + y);
+		else
+			return nullptr;
+	}
+	else if (y > chunkSize - 1) {
+		if (neighbour[Y_P])
+			return neighbour[Y_P]->findSlice(x, y - chunkSize);
+		else
+			return nullptr;
+	}
+
+	return this;
+}
+
+int AWorldSlice::convertVoxelToLocal(int i)
+{
+	if (i <= -1) {
+		int n = abs((double)i / (double)chunkSize) + 1;
+		i = chunkSize * n + i;
+	}
+	else if (i >= chunkSize) {
+		int n = abs((double)i / (double)chunkSize);
+		i = i - chunkSize * n;
+	}
+	return i;
 }
 
 /******************
@@ -140,20 +193,16 @@ void ChunkTask::MakeTerrain()
 	VoxelData bottom = VoxelData{ VoxelType::UNBREAKABLE, 4 };
 
 	Generator_1 g{};
-	auto chunkIndex = slice->chunkIndex;
-	chunkIndex *= slice->chunks[0]->chunkSize;
+	auto chunkIndex = slice->chunkIndex * slice->chunkSize;
 
-	for (size_t x = 0; x < slice->chunks[0]->chunkSize; x++)
-		for (size_t y = 0; y < slice->chunks[0]->chunkSize; y++) {
+	for (size_t x = 0; x < slice->chunkSize; x++)
+		for (size_t y = 0; y < slice->chunkSize; y++) {
 
-			//int h = g.heightMap(chunkIndex.X + x, chunkIndex.Y + y);
-			//for (size_t z = 0; z < slice->chunkHeight * slice->chunks[0]->chunkSize; z++) {
-			//	if (h > z)
-			//		slice->setVoxel(stone, x, y, z);
-			//}
-
-
-					slice->setVoxel(stone, x, y, 0); //TODO: REMOVE
+			int h = g.heightMap(chunkIndex.X + x, chunkIndex.Y + y);
+			for (size_t z = 0; z < slice->chunkHeight * slice->chunkSize; z++) {
+				if (h > z)
+					slice->setVoxel(stone, x, y, z);
+			}
 		}
 
 	slice->state = TERRAIN;
@@ -164,11 +213,10 @@ void ChunkTask::MakeObjects()
 	VoxReader reader("test64.vox");
 	Generator_1 g{};
 
+	auto globalIndex = slice->chunkIndex * slice->chunkSize;
 
-	auto globalIndex = slice->chunkIndex * slice->chunks[0]->chunkSize;
-
-	for (size_t x = 0; x < slice->chunks[0]->chunkSize; x++)
-		for (size_t y = 0; y < slice->chunks[0]->chunkSize; y++) {
+	for (size_t x = 0; x < slice->chunkSize; x++)
+		for (size_t y = 0; y < slice->chunkSize; y++) {
 			if (g.makeTree(globalIndex.X + x, globalIndex.Y + y)) {
 
 				int zStart = g.heightMap(globalIndex.X + x, globalIndex.Y + y);
@@ -181,7 +229,6 @@ void ChunkTask::MakeObjects()
 			}
 		}
 
-
 	slice->state = MESH;
 }
 
@@ -189,9 +236,7 @@ void ChunkTask::MakeMesh()
 {
 	for (size_t i = 0; i < slice->chunkHeight; i++)
 	{
-		if (slice->chunks[i]->isMeshOutdated()) {
-			slice->chunks[i]->updateMeshData();
-		}
+		slice->chunks[i]->updateMeshData();
 	}
 	slice->state = MESH;
 }

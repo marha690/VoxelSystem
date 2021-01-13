@@ -46,12 +46,13 @@ private:
 	bool LoadSlice(FVector2D index);
 
 	SliceState globalSliceState(int range);
-	void setChunkNeighbours();
+	void setSliceNeighbours();
 	void continueGenerationProcess(SliceState gState, int range);
 	void renderMeshes(int range);
 
 	int chunkSize = 32;
 	int chunkDimension = 35;
+	int chunksInHeight = 6;
 
 	bool generateArea(int range);
 };

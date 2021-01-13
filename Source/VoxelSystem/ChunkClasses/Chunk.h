@@ -64,12 +64,12 @@ public:
 	virtual ~Chunk() {};
 	virtual void setVoxel(VoxelData d, FVector xyz) { verify(false); }
 	virtual void setVoxel(VoxelData d, int x, int y, int z) { verify(false); }
-	virtual VoxelData getVoxel(FVector xyz) { return { IRREGULAR, 0}; }
-	virtual VoxelData getVoxel(int x, int y, int z) { return { IRREGULAR, 0 }; }
+	virtual const VoxelData* getVoxel(FVector xyz) { return nullptr; }
+	virtual const VoxelData* getVoxel(int x, int y, int z) { return nullptr; }
 	virtual bool isSolid(int x, int y, int z) { return false; }
 	virtual void updateMeshData() { verify(false); }
 	int getChunkWorldSize() {return voxelSize * chunkSize; }
-	bool isMeshOutdated() { return !meshCorrect; }
+	void clearData();
 	TArray<FVector>* getVertices() { return &vertices; }
 	TArray<int32>* getTriangles() { return &triangles; }
 	TArray<FLinearColor>* getVertexColors() { return &vertexColors; }
