@@ -16,14 +16,18 @@ AWorldSlice::AWorldSlice()
 	CustomMesh->bUseAsyncCooking = true;
 }
 
-void AWorldSlice::initialize(int numChunks, int cSize, int chunkDimension, FVector2D cIndex)
+void AWorldSlice::initialize(int numChunks, int cSize, int chunkDimension, FVector2D cIndex, UMaterial* material, TArray<FColor>* cPalette)
 {
 	chunkSize = cSize;
 	chunkHeight = numChunks;
 	chunkIndex = cIndex;
+	customPalette = cPalette;
 	VoxelData air = VoxelData{ VoxelType::AIR, 0 };
 
+	UMaterialInstanceDynamic* DynMaterial = UMaterialInstanceDynamic::Create(material, this);
+
 	for (size_t i = 0; i < chunkHeight; i++) {
+		CustomMesh->SetMaterial(i, DynMaterial);
 		denseChunk* c = new denseChunk(chunkSize, chunkDimension, i, air, this);
 		chunks.Add(c);
 	}
@@ -65,6 +69,8 @@ const VoxelData* AWorldSlice::getVoxel(int x, int y, int z)
 	if (slice) {
 		int i = (double)z / (double)chunkSize;
 		z = convertVoxelToLocal(z);
+		if (i < 0 || i >= chunkHeight)
+			return nullptr;
 		if(chunks[i])
 			return slice->chunks[i]->getVoxel(x, y, z);
 	}
@@ -106,6 +112,11 @@ void AWorldSlice::setNeighbour(NeighbourSlice direction, AWorldSlice* s)
 {
 	if (!neighbour[(int)direction])
 		neighbour[(int)direction] = s;
+}
+
+AWorldSlice::~AWorldSlice()
+{
+	chunks.Empty();
 }
 
 AWorldSlice* AWorldSlice::findSlice(int x, int y)
@@ -189,10 +200,15 @@ void ChunkTask::DoWork()
 
 void ChunkTask::MakeTerrain()
 {
-	VoxelData stone = VoxelData{ VoxelType::REGULAR, 4 };
-	VoxelData bottom = VoxelData{ VoxelType::UNBREAKABLE, 4 };
+	VoxelData grass1 = VoxelData{ VoxelType::REGULAR, 231 };
+	VoxelData grass2 = VoxelData{ VoxelType::REGULAR, 230 };
 
-	Generator_1 g{};
+	VoxelData stone1 = VoxelData{ VoxelType::REGULAR, 251 };
+	VoxelData stone2 = VoxelData{ VoxelType::REGULAR, 250 };
+
+	VoxelData bottom = VoxelData{ VoxelType::UNBREAKABLE, 6 };
+
+	Generator_1 g{slice->chunkSize};
 	auto chunkIndex = slice->chunkIndex * slice->chunkSize;
 
 	for (size_t x = 0; x < slice->chunkSize; x++)
@@ -200,9 +216,16 @@ void ChunkTask::MakeTerrain()
 
 			int h = g.heightMap(chunkIndex.X + x, chunkIndex.Y + y);
 			for (size_t z = 0; z < slice->chunkHeight * slice->chunkSize; z++) {
-				if (h > z)
-					slice->setVoxel(stone, x, y, z);
+
+				int r = g.rand(5, chunkIndex.X + (x*3) + chunkIndex.Y + (y*23));
+				if (h > z && z < 30 + r) {
+						slice->setVoxel(grass2, x, y, z);
+				}
+				else if (h > z) {
+						slice->setVoxel(stone2, x, y, z);
+				}
 			}
+			slice->setVoxel(bottom, x, y, 0);
 		}
 
 	slice->state = TERRAIN;
@@ -210,16 +233,17 @@ void ChunkTask::MakeTerrain()
 
 void ChunkTask::MakeObjects()
 {
-	VoxReader reader("test64.vox");
-	Generator_1 g{};
+	VoxReader reader("treeB.vox");
+	Generator_1 g{slice->chunkSize};
 
 	auto globalIndex = slice->chunkIndex * slice->chunkSize;
 
 	for (size_t x = 0; x < slice->chunkSize; x++)
 		for (size_t y = 0; y < slice->chunkSize; y++) {
-			if (g.makeTree(globalIndex.X + x, globalIndex.Y + y)) {
-
-				int zStart = g.heightMap(globalIndex.X + x, globalIndex.Y + y);
+			int tx = (globalIndex.X + x);
+			int ty = (globalIndex.Y + y);
+			if (g.makeTree(tx, ty)) {
+				int zStart = g.heightMap(tx, ty);
 				for (size_t i = 0; i < reader.voxels.size(); i++) {
 					auto raw = reader.voxels[i];
 					VoxelData data{ VoxelType::REGULAR, raw.second };

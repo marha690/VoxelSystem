@@ -20,11 +20,13 @@ void AInfinitiveWorldGenerator::BeginPlay()
 	WRLD = GetWorld(); // Get current world.
 	verify(WRLD != nullptr);
 
+	readTexture();
+
 	int chunkWorldSize = chunkSize * chunkDimension;
 	OldPlayerAtSlice.X = (int)floor(player->GetTransform().GetLocation().X / chunkWorldSize);
 	OldPlayerAtSlice.Y = (int)floor(player->GetTransform().GetLocation().Y / chunkWorldSize);
 
-	Generator_1 g{};
+	Generator_1 g{chunkSize};
 	int playerZ = g.heightMap(player->GetTransform().GetLocation().X / chunkDimension, player->GetTransform().GetLocation().Y / chunkDimension) * chunkDimension;
 	player->SetActorTransform(FTransform(FVector(player->GetTransform().GetLocation().X, player->GetTransform().GetLocation().Y, playerZ)));
 }
@@ -93,8 +95,12 @@ bool AInfinitiveWorldGenerator::LoadSlice(FVector2D index)
 	// Create new chunk if it does not exist.
 	FRotator rot = FRotator(0, 0, 0);
 	FVector pos = FVector(index, 0) * (chunkSize * chunkDimension);
-	auto v = (AWorldSlice*)GetWorld()->SpawnActor(AWorldSlice::StaticClass(), &pos, &rot);
-	v->initialize(chunksInHeight, chunkSize, chunkDimension, index);
+	AWorldSlice* v = (AWorldSlice*)GetWorld()->SpawnActor(AWorldSlice::StaticClass(), &pos, &rot);
+	if (hasColorAtlas)
+		v->initialize(chunksInHeight, chunkSize, chunkDimension, index, material, &colorAtlas);
+	else
+		v->initialize(chunksInHeight, chunkSize, chunkDimension, index, material);
+
 	v->SetFolderPath("/Chunks");
 	WorldSlices.Add(index, v);
 	return true;
@@ -116,6 +122,53 @@ SliceState AInfinitiveWorldGenerator::globalSliceState(int range)
 		}
 
 	return globalProgress;
+}
+
+void AInfinitiveWorldGenerator::readTexture()
+{
+	if (!custom_palette) {
+		//TODO. Use basic texture atlas.
+		hasColorAtlas = false;
+		return;
+	}
+
+	int TextureInFileSize = custom_palette->GetSizeX(); //the width of the texture
+	colorAtlas.Init(FColor(0, 0, 0, 255), TextureInFileSize * TextureInFileSize);//making sure it has something, and sizing the array n*n
+	//init TArray
+	//What i want to do is take all the values from Texture File ->to-> TArray of FColors
+	if (!custom_palette) {
+		//Many times i forgot to load the texture in the editor so every time i hit play the editor crashed
+		UE_LOG(LogTemp, Error, TEXT("Missing texture in LevelInfo, please load the mask!"));
+		return; //<---if textureInFile is missing stop execution of the code
+	}
+	if (custom_palette != nullptr) {
+		UE_LOG(LogTemp, Warning, TEXT("Texture in file is :  %d  pixels wide"), TextureInFileSize);
+
+		FTexture2DMipMap& Mip = custom_palette->PlatformData->Mips[0];//A reference 
+		void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
+		uint8* raw = NULL;
+		raw = (uint8*)Data;
+
+		FColor pixel = FColor(0, 0, 0, 255);//used for spliting the data stored in raw form
+
+		//the usual nested loop for reading the pixels
+		for (int y = 0; y < TextureInFileSize; y++) {
+
+			for (int x = 0; x < TextureInFileSize; x++) {
+				//data in the raw var is serialized i think ;)
+				//so a pixel is four consecutive numbers e.g 0,0,0,255
+				//and the following code split the values in single components and store them in a FColor
+				pixel.B = raw[4 * (TextureInFileSize * y + x) + 0];
+				pixel.G = raw[4 * (TextureInFileSize * y + x) + 1];
+				pixel.R = raw[4 * (TextureInFileSize * y + x) + 2];
+				//And then this code iterates over the TArray of FColors and stores them
+				colorAtlas[x + y * TextureInFileSize] = FColor((uint8)pixel.R, (uint8)pixel.G, (uint8)pixel.B, 255);
+			}
+		}
+		Mip.BulkData.Unlock();
+		custom_palette->UpdateResource();
+	}
+	hasColorAtlas = true;
 }
 
 void AInfinitiveWorldGenerator::setSliceNeighbours()

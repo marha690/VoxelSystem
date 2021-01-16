@@ -37,6 +37,8 @@ const VoxelData* denseChunk::getVoxel(FVector xyz)
 const VoxelData* denseChunk::getVoxel(int x, int y, int z)
 {
 	int index = arrayIndex(x, y, z);
+	if (index > chunkSize * chunkSize * chunkSize)
+		return nullptr;
 	return &voxels[index];
 }
 
@@ -50,8 +52,13 @@ void denseChunk::updateMeshData()
 					if (!isSolid(x, y, z)) continue;
 
 					int index = arrayIndex(x, y, z);
-					auto c = defaultPalette[voxels[index].colorID];
-					FColor color(c);
+
+					FColor color;
+					auto colorIndex = voxels[index].colorID;
+					if (owner->customPalette)
+						color = owner->customPalette->GetData()[colorIndex - 1];
+					else
+						color = FColor(owner->defaultPalette[colorIndex - 1]);
 
 					FVector voxelPos = FVector(x, y, z);
 					if (!isSolid(voxelPos.X - 1, voxelPos.Y, voxelPos.Z))

@@ -8,8 +8,13 @@
 #include "../Noise/noise1234.h"
 #include "../Noise/simplexnoise1234.h"
 
-Generator_1::Generator_1()
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctime>
+
+Generator_1::Generator_1(int cSize)
 {
+	chunkSize = cSize;
 }
 
 Generator_1::~Generator_1()
@@ -35,10 +40,17 @@ int Generator_1::heightMap(int x, int y)
 
 bool Generator_1::makeTree(int x, int y)
 {
-	if (x == 0 && y == 0)
-		return true;
-	else
-		return false;
+	int mapSize = 64;
+	int bX = abs(x) % mapSize;
+	int bY = abs(y) % mapSize;
+	int index = bX * mapSize + bY;
+	uint8_t val = bigBlueNoise_map[index];
+
+	if (val ==  233) {
+		int h = heightMap(x, y);
+		return (h < 30)? true: false;
+	}
+	return false;
 }
 
 int Generator_1::chaosHash(int x, int y, int seed)
@@ -46,4 +58,11 @@ int Generator_1::chaosHash(int x, int y, int seed)
 	int h = seed + x * 374761393 + y * 668265263;
 	h = (h ^ (h >> 13)) * 1274126177;
 	return h ^ (h >> 16);
+}
+
+int Generator_1::rand(int range, int seed)
+{
+	srand(seed);
+	int result = 1 + (std::rand() % range);
+	return result;
 }

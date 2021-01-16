@@ -22,6 +22,12 @@ public:
 	UPROPERTY(EditAnywhere)
 		AActor* player;
 
+	UPROPERTY(EditAnywhere)
+		UMaterial* material;
+
+	UPROPERTY(EditAnywhere)
+		UTexture2D* custom_palette;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -35,6 +41,12 @@ private:
 	UWorld* WRLD;
 	int ActiveRenderDistance = 1;
 	TMap<FVector2D, class AWorldSlice*>WorldSlices;
+	TArray<FColor> colorAtlas;
+	bool hasColorAtlas = true;
+
+	int chunkSize = 32;
+	int chunkDimension = 35;
+	int chunksInHeight = 6;
 
 	// Player.
 	FVector2D PlayerAtSlice;
@@ -44,15 +56,10 @@ private:
 	void DeleteUnnecessaryWorldSlices();
 	void GenerateNewWorldSlices(int range);
 	bool LoadSlice(FVector2D index);
-
 	SliceState globalSliceState(int range);
+	void readTexture();
 	void setSliceNeighbours();
 	void continueGenerationProcess(SliceState gState, int range);
 	void renderMeshes(int range);
-
-	int chunkSize = 32;
-	int chunkDimension = 35;
-	int chunksInHeight = 6;
-
 	bool generateArea(int range);
 };
